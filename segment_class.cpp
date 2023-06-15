@@ -720,7 +720,7 @@ void free_st_from_ram(simplex_table_cuda *st)
 void extract_weight_matrix(int index)
 {
     vector<float> weight_matrix_raw;
-    for(int a=0;a<cdp_vec[index].firing_data[0].size()*2;a++)
+    for(int a=0;a<cdp_vec[index].firing_data[0]->size()*2;a++)
     {
         bool found=false;
         for(int b=0;b<st_vec[index]->r_id_size;b++)
@@ -735,7 +735,7 @@ void extract_weight_matrix(int index)
         if(!found)
         {   weight_matrix_raw.push_back(0);}
     }
-    for(int a=0;a<cdp_vec[index].firing_data[0].size()*2;a+=2)
+    for(int a=0;a<cdp_vec[index].firing_data[0]->size()*2;a+=2)
     {   cdp_vec[index].weight_matrix.push_back(weight_matrix_raw[a]-weight_matrix_raw[a+1]);}
 }
 
@@ -745,38 +745,6 @@ void handle_completed_table(conflict_id *conflict,int index)
     {
         extract_weight_matrix(index);
         cdp_vec[index].core->network1.create_new_path(cdp_vec[index].weight_matrix,cdp_vec[index].firing_neuron_index);
-        /*cout<<"\nweight matrix added to core. weight: ";
-        for(int a=0;a<cdp_vec[index].weight_matrix.size();a++)
-        {   cout<<cdp_vec[index].weight_matrix[a]<<",";}
-        cout<<"\nfd: ";
-        for(int a=0;a<cdp_vec[index].firing_data[0].size();a++)
-        {   cout<<cdp_vec[index].firing_data[0][a]<<",";}
-        cout<<"\nnfd: ";
-        for(int a=0;a<cdp_vec[index].not_firing_data[0].size();a++)
-        {   cout<<cdp_vec[index].not_firing_data[0][a]<<",";}
-        cout<<"\ncore_no_cdp: "<<cdp_vec[index].core_no<<" core_no_st: "<<st_vec[index]->core_no;
-        cout<<"\nrhs_lower: "<<segment.critical_variable->rhs_lower<<", rhs_upper: "<<segment.critical_variable->rhs_upper;
-        for(int a=0;a<cdp_vec[index].firing_data.size();a++)
-        {
-            float total=0;
-            for(int b=0;b<cdp_vec[index].firing_data[a].size();b++)
-            {
-                total+=cdp_vec[index].firing_data[a][b]*cdp_vec[index].weight_matrix[b];
-            }
-            if(total<segment.critical_variable->rhs_lower)
-            {   cout<<"\nfailed1!!!  "<<total;}
-        }
-        for(int a=0;a<cdp_vec[index].not_firing_data.size();a++)
-        {
-            float total=0;
-            for(int b=0;b<cdp_vec[index].not_firing_data[a].size();b++)
-            {
-                total+=cdp_vec[index].not_firing_data[a][b]*cdp_vec[index].weight_matrix[b];
-            }
-            if(total>segment.critical_variable->rhs_upper)
-            {   cout<<"\nfailed2!!!: "<<total;}
-        }
-        int gh;cin>>gh;*/
     }
     else//handle conflicts
     {
@@ -792,7 +760,7 @@ void handle_completed_table(conflict_id *conflict,int index)
                 //cout<<"\nid: "<<conflict_id_vec[index].id_vec[a];
                 cdp1.firing_data.push_back(cdp_vec[index].firing_data[conflict->id_vec[a]]);
             }
-            for(int a=0;a<conflict->id_vec.size();a++)
+            for(int a=conflict->id_vec.size()-1;a>=0;a--)
             {   cdp_vec[index].firing_data.erase(cdp_vec[index].firing_data.begin()+conflict->id_vec[a]);}
             //cout<<"\nerasing done";
             cdp1.firing_data.insert(cdp1.firing_data.end(),cdp_vec[index].firing_data.begin(),cdp_vec[index].firing_data.begin()+original_fd_size/2-conflict->id_vec.size());

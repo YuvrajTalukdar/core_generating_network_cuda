@@ -449,7 +449,7 @@ void prepare_cdp_and_st_core(core_class *core)
         {
             int no_of_packages_created=0;
             int initial_value=0,final_value=0;
-            vector<vector<float>> not_firing_data_temp;
+            vector<vector<float>*> not_firing_data_temp;
             not_firing_data_temp.clear();
             //copying all the not firing data in not_firing_data_temp
             for(int b=0;b<core->f_data_pack->size();b++)
@@ -457,7 +457,7 @@ void prepare_cdp_and_st_core(core_class *core)
                 if(b!=a)
                 {
                     for(int c=0;c<core->f_data_pack->at(b).data.size();c++)
-                    {   not_firing_data_temp.push_back(core->f_data_pack->at(b).data[c]);}
+                    {   not_firing_data_temp.push_back(&core->f_data_pack->at(b).data[c]);}
                 }
             }
             while(no_of_packages_created!=no_of_c_data_packs_needed)
@@ -469,7 +469,7 @@ void prepare_cdp_and_st_core(core_class *core)
                 c_datapack.weight_matrix.clear();
                 //packing the firing data
                 for(int b=0;b<core->f_data_pack->at(a).data.size();b++)
-                {   c_datapack.firing_data.push_back(core->f_data_pack->at(a).data[b]);}
+                {   c_datapack.firing_data.push_back(&core->f_data_pack->at(a).data[b]);}
                 //packing not firing data
                 initial_value=final_value;
                 final_value=final_value+no_of_not_firing_data_in_each_pack;
@@ -508,7 +508,7 @@ void prepare_cdp_and_st_core(core_class *core)
                 {   final_value=final_value+additional_firing_data_in_the_last_datapack;}
                 for(int b=initial_value;b<final_value;b++)
                 {
-                    c_datapack.firing_data.push_back(core->f_data_pack->at(a).data[b]);
+                    c_datapack.firing_data.push_back(&core->f_data_pack->at(a).data[b]);
                 }
                 //packing the not firing data
                 for(int b=0;b<core->f_data_pack->size();b++)
@@ -516,7 +516,7 @@ void prepare_cdp_and_st_core(core_class *core)
                     if(b!=a)
                     {
                         for(int c=0;c<core->f_data_pack->at(b).data.size();c++)
-                        {   c_datapack.not_firing_data.push_back(core->f_data_pack->at(b).data[c]);}
+                        {   c_datapack.not_firing_data.push_back(&core->f_data_pack->at(b).data[c]);}
                     }
                 }
                 //setting up the label and output neuron index
@@ -527,7 +527,7 @@ void prepare_cdp_and_st_core(core_class *core)
             }
         }
     }
-    core->f_data_pack->clear();//memory_optimization3
+    //core->f_data_pack->clear();//memory_optimization3
     core->print_message("finished packaging data in c_datapacks.");
     core->print_message("\ntotal no of c_data_packs= "+to_string(core->c_datapacks.size()));
     /*cout<<"\nsize1: "<<c_datapacks.size();
@@ -631,9 +631,9 @@ simplex_table_cuda* generate_simplex_table(converted_data_pack* cdp,datapack_str
 {
     simplex_table_cuda *st=new simplex_table_cuda();
 
-    st->c_id_size=cdp->firing_data[0].size()*2+cdp->firing_data.size()+cdp->not_firing_data.size()+3;
+    st->c_id_size=cdp->firing_data[0]->size()*2+cdp->firing_data.size()+cdp->not_firing_data.size()+3;
     st->c_id=(id*)malloc(sizeof(id)*st->c_id_size);
-    for(int a=0;a<cdp->firing_data[0].size()*2;a++)
+    for(int a=0;a<cdp->firing_data[0]->size()*2;a++)
     {
         id temp_id;
         temp_id.basic=true;
@@ -644,7 +644,7 @@ simplex_table_cuda* generate_simplex_table(converted_data_pack* cdp,datapack_str
         temp_id.id=a;
         st->c_id[a]=temp_id;
     }
-    int slack_id=cdp->firing_data[0].size()*2;
+    int slack_id=cdp->firing_data[0]->size()*2;
     for(int a=0;a<(cdp->firing_data.size()+cdp->not_firing_data.size());a++)
     {
         id temp_id;
@@ -700,7 +700,7 @@ simplex_table_cuda* generate_simplex_table(converted_data_pack* cdp,datapack_str
     st->rhs=(double*)malloc(sizeof(double)*st->rhs_size);
 
     st->basic_var_size_row=cdp->firing_data.size()+cdp->not_firing_data.size();
-    st->basic_var_size_col=cdp->firing_data[0].size()*2;
+    st->basic_var_size_col=cdp->firing_data[0]->size()*2;
     st->basic_var=(float*)malloc(sizeof(float)*st->basic_var_size_col*st->basic_var_size_row);
 
     st->slack_var_size_row=st->basic_var_size_row;
@@ -710,10 +710,10 @@ simplex_table_cuda* generate_simplex_table(converted_data_pack* cdp,datapack_str
     for(int a=0;a<cdp->firing_data.size();a++)
     {
         //entering basic variable data
-        for(int b=0;b<cdp->firing_data[a].size();b++)
+        for(int b=0;b<cdp->firing_data[a]->size();b++)
         {   
-            st->basic_var[a*cdp->firing_data[a].size()*2+b*2]=cdp->firing_data[a][b];
-            st->basic_var[a*cdp->firing_data[a].size()*2+b*2+1]=cdp->firing_data[a][b]*-1;
+            st->basic_var[a*cdp->firing_data[a]->size()*2+b*2]=cdp->firing_data[a]->at(b);
+            st->basic_var[a*cdp->firing_data[a]->size()*2+b*2+1]=cdp->firing_data[a]->at(b)*-1;
         }
         //entering slack var data
         for(int b=0;b<st->r_id_size;b++)
@@ -729,10 +729,10 @@ simplex_table_cuda* generate_simplex_table(converted_data_pack* cdp,datapack_str
     for(int a=0;a<cdp->not_firing_data.size();a++)
     {
         //entering basic variable data
-        for(int b=0;b<cdp->not_firing_data[a].size();b++)
+        for(int b=0;b<cdp->not_firing_data[a]->size();b++)
         {   
-            st->basic_var[x1*cdp->not_firing_data[a].size()*2+b*2]=cdp->not_firing_data[a][b];
-            st->basic_var[x1*cdp->not_firing_data[a].size()*2+b*2+1]=cdp->not_firing_data[a][b]*-1;
+            st->basic_var[x1*cdp->not_firing_data[a]->size()*2+b*2]=cdp->not_firing_data[a]->at(b);
+            st->basic_var[x1*cdp->not_firing_data[a]->size()*2+b*2+1]=cdp->not_firing_data[a]->at(b)*-1;
         }
         //entering slack var data
         for(int b=0;b<st->r_id_size;b++)
