@@ -8,8 +8,7 @@ This version solves all such problems.
 
 Copyrighte Yuvraj Talukdar SW-16114/2023
 
-We implemented theprogram in cuda. It works well and manage to have high gpu utilization, but there are some major optimization problems, both in memory 
-utilization and runtime performance, which will be addressed later.
+We implemented the program in cuda. It works well and manage to have high gpu utilization. We tested the program in Nvidia 30 series (Ampere Architecture) and compiled using CUDA 12. CUDA 11 too should work. For older or newer Nvidia gpu the make file may need some changes.  
 
 Compilation from source (Linux)-
 Required Library
