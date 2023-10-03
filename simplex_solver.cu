@@ -11,87 +11,77 @@ void copy_table_to_ram(simplex_table_cuda *st_d);
 
 /*Simplex solver functions and kernel*/
 int shared_memory_size=0;
-__global__ void pivot_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,int *p_row_arr,int *p_col_arr,char *completion_code)//ok check
+__device__ void pivot_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,int *p_row_arr,int *p_col_arr,char *completion_code,int blockIdx_x,int threadIdx_x)//ok check
 {
-    if(completion_code[blockIdx.x]=='0')
+    switch(threadIdx_x)
     {
-        switch(threadIdx.x)
-        {
-            case 0:
-            st_arr[blockIdx.x].r_id[p_row_arr[blockIdx.x]].basic=st_arr[blockIdx.x].c_id[p_col_arr[blockIdx.x]].basic;
-            break;
-            case 1:
-            st_arr[blockIdx.x].r_id[p_row_arr[blockIdx.x]].id=st_arr[blockIdx.x].c_id[p_col_arr[blockIdx.x]].id;
-            break;
-            case 2:
-            st_arr[blockIdx.x].r_id[p_row_arr[blockIdx.x]].rhs=st_arr[blockIdx.x].c_id[p_col_arr[blockIdx.x]].rhs;;
-            break;
-            case 3:
-            st_arr[blockIdx.x].r_id[p_row_arr[blockIdx.x]].slack=st_arr[blockIdx.x].c_id[p_col_arr[blockIdx.x]].slack;
-            break;
-            case 4:
-            st_arr[blockIdx.x].r_id[p_row_arr[blockIdx.x]].theta=st_arr[blockIdx.x].c_id[p_col_arr[blockIdx.x]].theta;
-            break;
-            default:
-        }
-
-        if(threadIdx.x<st_arr[blockIdx.x].basic_var_size_col)
-        {   st_arr[blockIdx.x].basic_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].basic_var_size_col+threadIdx.x]/=pe_arr[blockIdx.x];}
-        else if(threadIdx.x>=st_arr[blockIdx.x].basic_var_size_col && threadIdx.x<(st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col))
-        {
-            int slack_col_index=threadIdx.x-st_arr[blockIdx.x].basic_var_size_col;
-            st_arr[blockIdx.x].slack_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].slack_var_size_col+slack_col_index]/=pe_arr[blockIdx.x];
-        }
-        else if(threadIdx.x==(st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col))
-        {   st_arr[blockIdx.x].rhs[p_row_arr[blockIdx.x]]/=pe_arr[blockIdx.x];}
+        case 0:
+        st_arr[blockIdx_x].r_id[p_row_arr[blockIdx_x]].basic=st_arr[blockIdx_x].c_id[p_col_arr[blockIdx_x]].basic;
+        break;
+        case 1:
+        st_arr[blockIdx_x].r_id[p_row_arr[blockIdx_x]].id=st_arr[blockIdx_x].c_id[p_col_arr[blockIdx_x]].id;
+        break;
+        case 2:
+        st_arr[blockIdx_x].r_id[p_row_arr[blockIdx_x]].rhs=st_arr[blockIdx_x].c_id[p_col_arr[blockIdx_x]].rhs;;
+        break;
+        case 3:
+        st_arr[blockIdx_x].r_id[p_row_arr[blockIdx_x]].slack=st_arr[blockIdx_x].c_id[p_col_arr[blockIdx_x]].slack;
+        break;
+        case 4:
+        st_arr[blockIdx_x].r_id[p_row_arr[blockIdx_x]].theta=st_arr[blockIdx_x].c_id[p_col_arr[blockIdx_x]].theta;
+        break;
+        default:
     }
+
+    if(threadIdx_x<st_arr[blockIdx_x].basic_var_size_col)
+    {   st_arr[blockIdx_x].basic_var[p_row_arr[blockIdx_x]*st_arr[blockIdx_x].basic_var_size_col+threadIdx_x]/=pe_arr[blockIdx_x];}
+    else if(threadIdx_x>=st_arr[blockIdx_x].basic_var_size_col && threadIdx_x<(st_arr[blockIdx_x].basic_var_size_col+st_arr[blockIdx_x].slack_var_size_col))
+    {
+        int slack_col_index=threadIdx_x-st_arr[blockIdx_x].basic_var_size_col;
+        st_arr[blockIdx_x].slack_var[p_row_arr[blockIdx_x]*st_arr[blockIdx_x].slack_var_size_col+slack_col_index]/=pe_arr[blockIdx_x];
+    }
+    else if(threadIdx_x==(st_arr[blockIdx_x].basic_var_size_col+st_arr[blockIdx_x].slack_var_size_col))
+    {   st_arr[blockIdx_x].rhs[p_row_arr[blockIdx_x]]/=pe_arr[blockIdx_x];}
 }
 
-__global__ void rest_of_row_modifier(simplex_table_cuda *st_arr,int *p_row_arr,int *p_col_arr,/*float *multiplying_element_matrix,*/int largest_row,char *completion_code)//ok check
+__global__ void rest_of_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,int *p_row_arr,int *p_col_arr,char *completion_code)//ok check
 {
     //row is blockIdx.y
     if(completion_code[blockIdx.x]=='0')
     {
+        pivot_row_modifier(st_arr,pe_arr,p_row_arr,p_col_arr,completion_code,blockIdx.x,threadIdx.x);
+        __syncthreads();
         if(threadIdx.x<st_arr[blockIdx.x].basic_var_size_row)
         {
             if(threadIdx.x!=p_row_arr[blockIdx.x])//all row accept pivot row
             {
-                if(blockIdx.y!=p_col_arr[blockIdx.x])
+                float multiplying_element;
+                if(p_col_arr[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
+                {   multiplying_element=st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+p_col_arr[blockIdx.x]];}
+                else
+                {   
+                    int index=p_col_arr[blockIdx.x]-st_arr[blockIdx.x].basic_var_size_col;
+                    multiplying_element=st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+index];
+                }
+                for(int blockIdx_y=0;blockIdx_y<st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col;blockIdx_y++)
                 {
-                    float multiplying_element;
-                    if(p_col_arr[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
-                    {   multiplying_element=st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+p_col_arr[blockIdx.x]];}
-                    else
-                    {   
-                        int index=p_col_arr[blockIdx.x]-st_arr[blockIdx.x].basic_var_size_col;
-                        multiplying_element=st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+index];
-                    }
-                    if(blockIdx.y<(st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col))
+                    if(blockIdx_y!=p_col_arr[blockIdx.x])//dont touch the p col
                     {
-                        if(blockIdx.y<st_arr[blockIdx.x].basic_var_size_col)//basic_point
+                        if(blockIdx_y<st_arr[blockIdx.x].basic_var_size_col)//basic_point
                         {   
-                            st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+blockIdx.y]-=(multiplying_element*st_arr[blockIdx.x].basic_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].basic_var_size_col+blockIdx.y]);
+                            st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+blockIdx_y]-=(multiplying_element*st_arr[blockIdx.x].basic_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].basic_var_size_col+blockIdx_y]);
                         }
-                        else if(blockIdx.y>=st_arr[blockIdx.x].basic_var_size_col && blockIdx.y<(st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col))//slack_point
+                        else if(blockIdx_y>=st_arr[blockIdx.x].basic_var_size_col && blockIdx_y<(st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col))//slack_point
                         {
-                            int slack_col_index=blockIdx.y-st_arr[blockIdx.x].basic_var_size_col;
+                            int slack_col_index=blockIdx_y-st_arr[blockIdx.x].basic_var_size_col;
                             st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+slack_col_index]-=(multiplying_element*st_arr[blockIdx.x].slack_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].slack_var_size_col+slack_col_index]);
                         }
                     }
-                    else if(blockIdx.y==st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col)//rhs
-                    {
-                        st_arr[blockIdx.x].rhs[threadIdx.x]-=multiplying_element*st_arr[blockIdx.x].rhs[p_row_arr[blockIdx.x]];   
-                    }
                 }
+                st_arr[blockIdx.x].rhs[threadIdx.x]-=multiplying_element*st_arr[blockIdx.x].rhs[p_row_arr[blockIdx.x]];   
             }
         }
-    }
-}
-
-__global__ void p_col_modifier(simplex_table_cuda *st_arr,int *p_row_arr,int *p_col_arr,char *completion_code)
-{
-    if(completion_code[blockIdx.x]=='0')
-    {
+        __syncthreads();
         if(threadIdx.x<st_arr[blockIdx.x].basic_var_size_row && threadIdx.x!=p_row_arr[blockIdx.x])
         {
             if(p_col_arr[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
@@ -127,12 +117,13 @@ void simplex_table_modifier(simplex_table_cuda *st_d_arr,int* row_with_negative_
     //pivot row modifier
     if(largest_col<5)
     {   largest_col=5;}
-    pivot_row_modifier<<<st_vec.size(),largest_col,shared_memory_size,*stream1>>>(st_d_arr,pe_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d);
     //rest of the row modifiew
-
-    dim3 block_vec(st_vec.size(),largest_col,1);
-    rest_of_row_modifier<<<block_vec,largest_row,shared_memory_size,*stream1>>>(st_d_arr,p_row_arr_d,p_col_arr_d,/*multiplying_element_matrix,*/largest_row,completion_code_d);
-    p_col_modifier<<<st_vec.size(),largest_row,shared_memory_size,*stream1>>>(st_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d);
+    int no_of_threads_required;
+    if(largest_col>largest_row)
+    {   no_of_threads_required=largest_col;}
+    else
+    {   no_of_threads_required=largest_row;}
+    rest_of_row_modifier<<<st_vec.size(),no_of_threads_required,shared_memory_size,*stream1>>>(st_d_arr,pe_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d);
     cudaStreamSynchronize(*stream1);
 
     //copy_table_to_ram(st_d_arr);//for testing
@@ -179,6 +170,7 @@ bool termination_condition_checker(simplex_table_cuda *st_d_arr,int largest_row,
         if(completion_code[a]!='0')
         {   termination_count++;}
     }
+    //cout<<"\ntc: "<<termination_count<<" total: "<<st_vec.size();
     if(termination_count==st_vec.size())
     {   return true;}
     else
@@ -258,7 +250,73 @@ __global__ void calc_theta_kernel(simplex_table_cuda *st_arr,int *pivote_col_ind
     }
 }
 
-__global__ void get_pivot_row_element_kernel(simplex_table_cuda *st_arr,int *p_row_arr,int *p_col_arr,float *pe_arr,char* completion_code,int no_of_tables)//ok check
+__device__ void check_for_cyclic_bug(int *p_col_arr_d,int *p_row_arr_d,buffer *buffer_obj_arr_d,char *completion_code_d,int index)
+{
+    if(completion_code_d[index]=='0')
+    {
+        if(buffer_obj_arr_d[index].small_index<buffer_obj_arr_d[index].small_size)
+        {
+            buffer_obj_arr_d[index].p_col_index_small[buffer_obj_arr_d[index].small_index]=p_col_arr_d[index];
+            buffer_obj_arr_d[index].p_row_index_small[buffer_obj_arr_d[index].small_index]=p_row_arr_d[index];
+            buffer_obj_arr_d[index].small_index++;
+        }
+        else
+        {
+            for(int a=0;a<buffer_obj_arr_d[index].small_size;a++)
+            {
+                if(a!=buffer_obj_arr_d[index].small_size-1)
+                {   
+                    buffer_obj_arr_d[index].p_col_index_small[a]=buffer_obj_arr_d[index].p_col_index_small[a+1];
+                    buffer_obj_arr_d[index].p_row_index_small[a]=buffer_obj_arr_d[index].p_row_index_small[a+1];
+                }
+                else
+                {   
+                    buffer_obj_arr_d[index].p_col_index_small[a]=p_col_arr_d[index];
+                    buffer_obj_arr_d[index].p_row_index_small[a]=p_row_arr_d[index];
+                }
+            }
+        }
+        if(buffer_obj_arr_d[index].large_index<buffer_obj_arr_d[index].large_size)
+        {
+            buffer_obj_arr_d[index].p_col_index[buffer_obj_arr_d[index].large_index]=p_col_arr_d[index];
+            buffer_obj_arr_d[index].p_row_index[buffer_obj_arr_d[index].large_index]=p_row_arr_d[index];
+            buffer_obj_arr_d[index].large_index++;
+        }
+        else
+        {
+            for(int b=0;b<buffer_obj_arr_d[index].large_index-buffer_obj_arr_d[index].small_size+1;b++)
+            {
+                int match=0;
+                for(int c=0;c<buffer_obj_arr_d[index].small_size;c++)
+                {
+                    if(buffer_obj_arr_d[index].p_row_index[b+c]==buffer_obj_arr_d[index].p_row_index_small[c] && 
+                        buffer_obj_arr_d[index].p_col_index[b+c]==buffer_obj_arr_d[index].p_col_index_small[c])
+                    {   match++;}
+                }
+                if(match==buffer_obj_arr_d[index].small_size)
+                {   completion_code_d[index]='4';break;}
+            }
+            if(completion_code_d[index]!='4')
+            {
+                for(int a=0;a<buffer_obj_arr_d[index].large_size;a++)
+                {
+                    if(a!=buffer_obj_arr_d[index].large_size-1)
+                    {   
+                        buffer_obj_arr_d[index].p_col_index[a]=buffer_obj_arr_d[index].p_col_index[a+1];
+                        buffer_obj_arr_d[index].p_row_index[a]=buffer_obj_arr_d[index].p_row_index[a+1];
+                    }
+                    else
+                    {   
+                        buffer_obj_arr_d[index].p_col_index[a]=p_col_arr_d[index];
+                        buffer_obj_arr_d[index].p_row_index[a]=p_row_arr_d[index];
+                    }
+                }
+            }
+        }
+    }
+}
+
+__global__ void get_pivot_row_element_kernel(simplex_table_cuda *st_arr,int *p_row_arr,int *p_col_arr,float *pe_arr,char* completion_code,int no_of_tables,buffer *buffer_obj_arr_d)//ok check
 {
     int index=blockIdx.x*32+threadIdx.x;
     if(index<no_of_tables)
@@ -293,78 +351,17 @@ __global__ void get_pivot_row_element_kernel(simplex_table_cuda *st_arr,int *p_r
                 }
             }
         }
+        check_for_cyclic_bug(p_col_arr,p_row_arr,buffer_obj_arr_d,completion_code,index);
     }
 }
 
-void check_for_cyclic_bug(int *p_col_arr_d,int *p_row_arr_d,vector<buffer> &buffer_obj_vec,simplex_table_cuda *st_d_arr,char *completion_code,char *completion_code_d)//need to be checked. The algorithm used here is new and much better as it should have exceptionally low false positives.
-{
-    int size_large=4,size_small=2;//large must be disible by small
-    int *p_col_arr,*p_row_arr;
-    p_col_arr=(int*)malloc(sizeof(int)*st_vec.size());
-    cudaMemcpy(p_col_arr,p_col_arr_d,sizeof(int)*st_vec.size(),cudaMemcpyDeviceToHost);
-    p_row_arr=(int*)malloc(sizeof(int)*st_vec.size());
-    cudaMemcpy(p_row_arr,p_row_arr_d,sizeof(int)*st_vec.size(),cudaMemcpyDeviceToHost);
-    cudaMemcpy(completion_code,completion_code_d,sizeof(char)*st_vec.size(),cudaMemcpyDeviceToHost);
-    bool cc_changed=false;
-    for(int a=0;a<st_vec.size();a++)
-    {
-        if(completion_code[a]=='0')
-        {
-            if(buffer_obj_vec[a].p_col_index_small.size()<size_small)
-            {
-                buffer_obj_vec[a].p_col_index_small.push_back(p_col_arr[a]);
-                buffer_obj_vec[a].p_row_index_small.push_back(p_row_arr[a]);
-            }
-            else
-            {
-                buffer_obj_vec[a].p_col_index_small.push_back(p_col_arr[a]);
-                buffer_obj_vec[a].p_row_index_small.push_back(p_row_arr[a]);
-                buffer_obj_vec[a].p_col_index_small.erase(buffer_obj_vec[a].p_col_index_small.begin());
-                buffer_obj_vec[a].p_row_index_small.erase(buffer_obj_vec[a].p_row_index_small.begin());   
-            }
-            if(buffer_obj_vec[a].p_col_index.size()<size_large)
-            {
-                buffer_obj_vec[a].p_col_index.push_back(p_col_arr[a]);
-                buffer_obj_vec[a].p_row_index.push_back(p_row_arr[a]);
-            }
-            else
-            {
-                for(int b=0;b<buffer_obj_vec[a].p_row_index.size()-size_small+1;b++)
-                {
-                    int match=0;
-                    for(int c=0;c<buffer_obj_vec[a].p_col_index_small.size();c++)
-                    {
-                        if(buffer_obj_vec[a].p_row_index[b+c]==buffer_obj_vec[a].p_row_index_small[c] && 
-                           buffer_obj_vec[a].p_col_index[b+c]==buffer_obj_vec[a].p_col_index_small[c])
-                        {   match++;}
-                    }
-                    if(match==size_small)
-                    {   
-                        completion_code[a]='4';
-                        cc_changed=true;
-                        break;
-                    }
-                }
-                if(completion_code[a]!='4')
-                {
-                    buffer_obj_vec[a].p_col_index.push_back(p_col_arr[a]);
-                    buffer_obj_vec[a].p_row_index.push_back(p_row_arr[a]);
-                    buffer_obj_vec[a].p_col_index.erase(buffer_obj_vec[a].p_col_index.begin());
-                    buffer_obj_vec[a].p_row_index.erase(buffer_obj_vec[a].p_row_index.begin());
-                }
-            }
-        }
-    }
-    if(cc_changed)
-    {   cudaMemcpy(completion_code_d,completion_code,sizeof(char)*st_vec.size(),cudaMemcpyHostToDevice);}
-    free(p_row_arr);
-    free(p_col_arr);
-}
-
-void free_simplex_table_from_vram(simplex_table_cuda *st_d_arr)//ok check
+void free_everything_from_vram(simplex_table_cuda *st_d_arr,buffer* buffer_obj_arr_d)//ok check
 {
     simplex_table_cuda *ram_arr=(simplex_table_cuda*)malloc(sizeof(simplex_table_cuda)*st_vec.size());
     cudaMemcpy(ram_arr,st_d_arr,sizeof(simplex_table_cuda)*st_vec.size(),cudaMemcpyDeviceToHost);
+
+    buffer *buffer_obj_arr=(buffer*)malloc(sizeof(buffer)*st_vec.size());
+    cudaMemcpy(buffer_obj_arr,buffer_obj_arr_d,sizeof(buffer)*st_vec.size(),cudaMemcpyDeviceToHost);
     for(int a=0;a<st_vec.size();a++)
     {
         cudaFree(ram_arr[a].basic_var);
@@ -373,12 +370,19 @@ void free_simplex_table_from_vram(simplex_table_cuda *st_d_arr)//ok check
         cudaFree(ram_arr[a].rhs);
         cudaFree(ram_arr[a].slack_var);
         cudaFree(ram_arr[a].theta);
+
+        cudaFree(buffer_obj_arr[a].p_col_index);        
+        cudaFree(buffer_obj_arr[a].p_row_index);
+        cudaFree(buffer_obj_arr[a].p_col_index_small);
+        cudaFree(buffer_obj_arr[a].p_row_index_small);
     }
     cudaFree(st_d_arr);
+    cudaFree(buffer_obj_arr_d);
     free(ram_arr);
+    free(buffer_obj_arr);
 }
 
-vector<conflict_id> pivot_element_finder(simplex_table_cuda *st_d_arr)
+vector<conflict_id> pivot_element_finder(simplex_table_cuda *st_d_arr,buffer* buffer_obj_arr_d)
 {
     int largest_row_size=0,largest_col_size=0;
     for(int a=0;a<st_vec.size();a++)
@@ -402,7 +406,7 @@ vector<conflict_id> pivot_element_finder(simplex_table_cuda *st_d_arr)
     int *p_col_arr_d,*p_row_arr_d;
     cudaMalloc(&p_col_arr_d,sizeof(int)*st_vec.size());
     cudaMalloc(&p_row_arr_d,sizeof(int)*st_vec.size());
-    vector<buffer> buffer_obj_vec(st_vec.size());
+    
     cudaStream_t stream1;
     cudaStreamCreate(&stream1);
     float *pe_d_arr;
@@ -417,15 +421,13 @@ vector<conflict_id> pivot_element_finder(simplex_table_cuda *st_d_arr)
         //cout<<"\niteration: "<<iteration;
         find_row_with_negative_slack_and_p_col_kernel<<<no_of_blocks,32,shared_memory_size,stream1>>>(st_d_arr,row_with_negative_slack_d,p_col_arr_d,completion_code_d,st_vec.size());
         calc_theta_kernel<<<st_vec.size(),largest_row_size,shared_memory_size,stream1>>>(st_d_arr,p_col_arr_d,completion_code_d);
-        get_pivot_row_element_kernel<<<no_of_blocks,32,shared_memory_size,stream1>>>(st_d_arr,p_row_arr_d,p_col_arr_d,pe_d_arr,completion_code_d,st_vec.size());
+        get_pivot_row_element_kernel<<<no_of_blocks,32,shared_memory_size,stream1>>>(st_d_arr,p_row_arr_d,p_col_arr_d,pe_d_arr,completion_code_d,st_vec.size(),buffer_obj_arr_d);
         cudaStreamSynchronize(stream1);
-        check_for_cyclic_bug(p_col_arr_d,p_row_arr_d,buffer_obj_vec,st_d_arr,completion_code,completion_code_d);
         simplex_table_modifier(st_d_arr,row_with_negative_slack_d,pe_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d,largest_col_size,largest_row_size,&stream1);
         //iteration++;
     } 
     while(!termination_condition_checker(st_d_arr,largest_row_size,completion_code,completion_code_d,&stream1,no_of_blocks));
     cudaStreamDestroy(stream1);
-    buffer_obj_vec.clear();
     cudaMemcpy(completion_code,completion_code_d,sizeof(char)*st_vec.size(),cudaMemcpyDeviceToHost);
     int complete=0,conflict=0;
     copy_table_to_ram(st_d_arr);
@@ -505,6 +507,27 @@ simplex_table_cuda* copy_table_to_vram(simplex_table_cuda *st_d_arr)//ok check
     return device_arr;
 }
 
+buffer* copy_cyclic_bug_buffer_to_vram(buffer* buffer_obj_arr_d)
+{
+    for(int a=0;a<st_vec.size();a++)
+    {
+        buffer_obj_arr_d[a].large_size=4;
+        buffer_obj_arr_d[a].small_size=2;
+        buffer_obj_arr_d[a].small_index=0;
+        buffer_obj_arr_d[a].large_index=0;
+
+        cudaMalloc(&buffer_obj_arr_d[a].p_row_index,sizeof(int)*buffer_obj_arr_d[a].large_size);
+        cudaMalloc(&buffer_obj_arr_d[a].p_col_index,sizeof(int)*buffer_obj_arr_d[a].large_size);
+        cudaMalloc(&buffer_obj_arr_d[a].p_row_index_small,sizeof(int)*buffer_obj_arr_d[a].small_size);
+        cudaMalloc(&buffer_obj_arr_d[a].p_col_index_small,sizeof(int)*buffer_obj_arr_d[a].small_size);
+    }
+    buffer *device_buffer;
+    cudaMalloc(&device_buffer,sizeof(buffer)*st_vec.size());
+    cudaMemcpy(device_buffer,buffer_obj_arr_d,sizeof(buffer)*st_vec.size(),cudaMemcpyHostToDevice);
+    free(buffer_obj_arr_d);
+    return device_buffer;
+}
+
 void copy_table_to_ram(simplex_table_cuda *st_d_arr)//ok check
 {
     simplex_table_cuda *ram_arr=(simplex_table_cuda*)malloc(sizeof(simplex_table_cuda)*st_vec.size());
@@ -523,11 +546,15 @@ void copy_table_to_ram(simplex_table_cuda *st_d_arr)//ok check
 vector<conflict_id> simplex_solver()
 {
     //auto start = high_resolution_clock::now();
+    //allocate the cyclic bug detecting buffer in vram
+    buffer* buffer_obj_arr_d;
+    buffer_obj_arr_d=(buffer*)malloc(sizeof(buffer)*st_vec.size());
+    buffer_obj_arr_d=copy_cyclic_bug_buffer_to_vram(buffer_obj_arr_d);
     simplex_table_cuda *st_d_arr;
     st_d_arr=(simplex_table_cuda*)malloc(sizeof(simplex_table_cuda)*st_vec.size());
     st_d_arr=copy_table_to_vram(st_d_arr);
-    vector<conflict_id> conflict_id_vec=pivot_element_finder(st_d_arr);
-    free_simplex_table_from_vram(st_d_arr);
+    vector<conflict_id> conflict_id_vec=pivot_element_finder(st_d_arr,buffer_obj_arr_d);
+    free_everything_from_vram(st_d_arr,buffer_obj_arr_d);
     int complete=0,conflict=0;
     for(int a=0;a<conflict_id_vec.size();a++)
     {

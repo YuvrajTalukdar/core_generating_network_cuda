@@ -91,10 +91,11 @@ simplex_table_cuda* generate_simplex_table(converted_data_pack* cdp,datapack_str
 
 struct buffer
 {
-    vector<int> p_row_index;
-    vector<int> p_col_index;
-    vector<int> p_row_index_small;
-    vector<int> p_col_index_small;
+    short large_size,large_index,small_size,small_index;
+    int *p_row_index;
+    int *p_col_index;
+    int *p_row_index_small;
+    int *p_col_index_small;
 };
 
 struct network_structure_defination{

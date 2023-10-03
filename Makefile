@@ -3,7 +3,8 @@ CC=nvcc
 LIBS= -lpthread
 # use -Wall for displaying all warnings
 CXXFLAGS= -rdc=true -arch=sm_86 -O3 -Xptxas -O3 -std=c++17
-CXXFLAGS2= -rdc=true -arch=sm_86 -std=c++17 -g -G
+#CXXFLAGS2= -rdc=true -arch=sm_86 -std=c++17 -g -G
+CXXFLAGS2= -rdc=true -arch=sm_86 -std=c++17 -g -lineinfo
 all: a.out
 
 a.out: main.o genetic_algorithm.o core_class.o menu.o input_raw_to_prepared.o segment_class.o simplex_solver.o
