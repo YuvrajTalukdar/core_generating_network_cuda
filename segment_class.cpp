@@ -691,8 +691,12 @@ void start_segment_trainer(segment_class *segment,vector<nn_core_filtered_data> 
     prepare_cdp_and_st_segment(segment,*f_data_vector);
     point1:
     vector<conflict_id> conflict_id_vec=simplex_solver();
-    for(int a=0;a<conflict_id_vec.size();a++)
-    {   handle_completed_table(&conflict_id_vec[a],a);}
+    #pragma omp parallel num_threads(conflict_id_vec.size())
+    //for(int a=0;a<conflict_id_vec.size();a++)
+    {   
+        int a = omp_get_thread_num();
+        handle_completed_table(&conflict_id_vec[a],a);
+    }
     cdp_vec.clear();
     st_vec.clear();
     cdp_vec.insert(cdp_vec.end(),cdp_vec_temp.begin(),cdp_vec_temp.end());

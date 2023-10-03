@@ -5,6 +5,7 @@ core class handles natural cores
 #include<filesystem>
 #include"neuron_and_ann_class.h"
 #include"core_class.h"
+#include<omp.h>
 
 using namespace std;
 namespace fs = std::filesystem;

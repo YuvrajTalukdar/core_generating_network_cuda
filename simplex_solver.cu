@@ -1,8 +1,8 @@
 #include"core_class.h"
-#include<thrust/device_vector.h>
-#include<thrust/host_vector.h>
+#include<cooperative_groups.h>
 
 /*Test functions*/
+using namespace cooperative_groups;
 
 void check(cudaError x) {
     fprintf(stderr, "%s\n", cudaGetErrorString(x));
@@ -44,54 +44,85 @@ __device__ void pivot_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,int 
     {   st_arr[blockIdx_x].rhs[p_row_arr[blockIdx_x]]/=pe_arr[blockIdx_x];}
 }
 
-__global__ void rest_of_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,int *p_row_arr,int *p_col_arr,char *completion_code)//ok check
+__global__ void rest_of_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,int *p_row_arr,int *p_col_arr,char *completion_code,int loop_size,int no_of_tables)//ok check
 {
     //row is blockIdx.y
-    if(completion_code[blockIdx.x]=='0')
+    for(int a=0;a<loop_size;a++)
     {
-        pivot_row_modifier(st_arr,pe_arr,p_row_arr,p_col_arr,completion_code,blockIdx.x,threadIdx.x);
-        __syncthreads();
-        if(threadIdx.x<st_arr[blockIdx.x].basic_var_size_row)
+        int index2=blockIdx.x*loop_size+a;
+        if(index2<no_of_tables)
         {
-            if(threadIdx.x!=p_row_arr[blockIdx.x])//all row accept pivot row
+            if(completion_code[index2]=='0')
             {
-                float multiplying_element;
-                if(p_col_arr[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
-                {   multiplying_element=st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+p_col_arr[blockIdx.x]];}
-                else
-                {   
-                    int index=p_col_arr[blockIdx.x]-st_arr[blockIdx.x].basic_var_size_col;
-                    multiplying_element=st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+index];
-                }
-                for(int blockIdx_y=0;blockIdx_y<st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col;blockIdx_y++)
-                {
-                    if(blockIdx_y!=p_col_arr[blockIdx.x])//dont touch the p col
-                    {
-                        if(blockIdx_y<st_arr[blockIdx.x].basic_var_size_col)//basic_point
-                        {   
-                            st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+blockIdx_y]-=(multiplying_element*st_arr[blockIdx.x].basic_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].basic_var_size_col+blockIdx_y]);
-                        }
-                        else if(blockIdx_y>=st_arr[blockIdx.x].basic_var_size_col && blockIdx_y<(st_arr[blockIdx.x].basic_var_size_col+st_arr[blockIdx.x].slack_var_size_col))//slack_point
-                        {
-                            int slack_col_index=blockIdx_y-st_arr[blockIdx.x].basic_var_size_col;
-                            st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+slack_col_index]-=(multiplying_element*st_arr[blockIdx.x].slack_var[p_row_arr[blockIdx.x]*st_arr[blockIdx.x].slack_var_size_col+slack_col_index]);
-                        }
-                    }
-                }
-                st_arr[blockIdx.x].rhs[threadIdx.x]-=multiplying_element*st_arr[blockIdx.x].rhs[p_row_arr[blockIdx.x]];   
+                pivot_row_modifier(st_arr,pe_arr,p_row_arr,p_col_arr,completion_code,index2,threadIdx.x);
             }
         }
-        __syncthreads();
-        if(threadIdx.x<st_arr[blockIdx.x].basic_var_size_row && threadIdx.x!=p_row_arr[blockIdx.x])
+    }
+    __syncthreads();
+    for(int a=0;a<loop_size;a++)
+    {
+        int index2=blockIdx.x*loop_size+a;
+        if(index2<no_of_tables)
         {
-            if(p_col_arr[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
+            if(completion_code[index2]=='0')
             {
-                st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+p_col_arr[blockIdx.x]]=0;
+                if(threadIdx.x<st_arr[index2].basic_var_size_row)
+                {
+                    if(threadIdx.x!=p_row_arr[index2])//all row accept pivot row
+                    {
+                        float multiplying_element;
+                        if(p_col_arr[index2]<st_arr[index2].basic_var_size_col)
+                        {   multiplying_element=st_arr[index2].basic_var[threadIdx.x*st_arr[index2].basic_var_size_col+p_col_arr[index2]];}
+                        else
+                        {   
+                            int index=p_col_arr[index2]-st_arr[index2].basic_var_size_col;
+                            multiplying_element=st_arr[index2].slack_var[threadIdx.x*st_arr[index2].slack_var_size_col+index];
+                        }
+                        int basic_var_size_till_now_col=p_row_arr[index2]*st_arr[index2].basic_var_size_col;
+                        int slack_var_size_till_now_col=p_row_arr[index2]*st_arr[index2].slack_var_size_col;
+                        short col_size=st_arr[index2].basic_var_size_col+st_arr[index2].slack_var_size_col;
+                        short slack_var_size_col=st_arr[index2].slack_var_size_col;
+                        for(int blockIdx_y=0;blockIdx_y<col_size;blockIdx_y++)
+                        {
+                            if(blockIdx_y!=p_col_arr[index2])//dont touch the p col
+                            {
+                                if(blockIdx_y<st_arr[index2].basic_var_size_col)//basic_point
+                                {   
+                                    st_arr[index2].basic_var[threadIdx.x*st_arr[index2].basic_var_size_col+blockIdx_y]-=(multiplying_element*st_arr[index2].basic_var[basic_var_size_till_now_col+blockIdx_y]);
+                                }
+                                else if(blockIdx_y>=st_arr[index2].basic_var_size_col && blockIdx_y<(col_size))//slack_point
+                                {
+                                    int slack_col_index=blockIdx_y-st_arr[index2].basic_var_size_col;
+                                    st_arr[index2].slack_var[threadIdx.x*slack_var_size_col+slack_col_index]-=(multiplying_element*st_arr[index2].slack_var[slack_var_size_till_now_col+slack_col_index]);
+                                }
+                            }
+                        }
+                        st_arr[index2].rhs[threadIdx.x]-=multiplying_element*st_arr[index2].rhs[p_row_arr[index2]];   
+                    }
+                }
             }
-            else
+        }
+    }
+    __syncthreads();
+    for(int a=0;a<loop_size;a++)
+    {
+        int index2=blockIdx.x*loop_size+a;
+        if(index2<no_of_tables)
+        {
+            if(completion_code[index2]=='0')
             {
-                int index=p_col_arr[blockIdx.x]-st_arr[blockIdx.x].basic_var_size_col;
-                st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+index]=0;
+                if(threadIdx.x<st_arr[index2].basic_var_size_row && threadIdx.x!=p_row_arr[index2])
+                {
+                    if(p_col_arr[index2]<st_arr[index2].basic_var_size_col)
+                    {
+                        st_arr[index2].basic_var[threadIdx.x*st_arr[index2].basic_var_size_col+p_col_arr[index2]]=0;
+                    }
+                    else
+                    {
+                        int index=p_col_arr[index2]-st_arr[index2].basic_var_size_col;
+                        st_arr[index2].slack_var[threadIdx.x*st_arr[index2].slack_var_size_col+index]=0;
+                    }
+                }
             }
         }
     }
@@ -123,8 +154,17 @@ void simplex_table_modifier(simplex_table_cuda *st_d_arr,int* row_with_negative_
     {   no_of_threads_required=largest_col;}
     else
     {   no_of_threads_required=largest_row;}
-    rest_of_row_modifier<<<st_vec.size(),no_of_threads_required,shared_memory_size,*stream1>>>(st_d_arr,pe_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d);
-    cudaStreamSynchronize(*stream1);
+    int loop_size=10;
+    int no_of_blocks=st_vec.size()/loop_size;
+    if(no_of_blocks==0)
+    {   no_of_blocks++;loop_size=st_vec.size();}
+    else
+    {
+        if(st_vec.size()%loop_size)
+        {   no_of_blocks++;}
+    }
+    rest_of_row_modifier<<<no_of_blocks,no_of_threads_required,shared_memory_size,*stream1>>>(st_d_arr,pe_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d,loop_size,st_vec.size());
+    //cudaStreamSynchronize(*stream1);
 
     //copy_table_to_ram(st_d_arr);//for testing
     //display_st(st_vec[0]);//for testing
@@ -177,10 +217,10 @@ bool termination_condition_checker(simplex_table_cuda *st_d_arr,int largest_row,
     {   return false;}
 }
 
-__global__ void find_row_with_negative_slack_and_p_col_kernel(simplex_table_cuda *st_arr,int *row_with_negative_slack,int *p_col_arr,char *completion_code,int no_of_tables)//ok check
+__global__ void find_row_with_negative_slack_and_p_col_kernel(simplex_table_cuda *st_arr,int *row_with_negative_slack,int *p_col_arr,char *completion_code,int no_of_table)//ok check
 {
     int index=blockIdx.x*32+threadIdx.x;
-    if(index<no_of_tables)
+    if(index<no_of_table)
     {
         if(completion_code[index]=='0')
         {
@@ -225,28 +265,6 @@ void conflicting_data_finder(int st_table_index,vector<conflict_id> &conflict_id
     {
         if(st_vec[st_table_index]->r_id[a].slack && st_vec[st_table_index]->slack_var[a*st_vec[st_table_index]->slack_var_size_col+st_vec[st_table_index]->r_id[a].id-st_vec[st_table_index]->basic_var_size_col]<0 && st_vec[st_table_index]->rhs[a]>0)
         {   conflict_id_vec[st_table_index].id_vec.push_back(st_vec[st_table_index]->r_id[a].id-st_vec[st_table_index]->basic_var_size_col);}
-    }
-}
-
-__global__ void calc_theta_kernel(simplex_table_cuda *st_arr,int *pivote_col_index,char *completion_code)//ok check
-{
-    if(completion_code[blockIdx.x]=='0' && threadIdx.x<st_arr[blockIdx.x].basic_var_size_row)
-    {
-        if(pivote_col_index[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
-        {
-            if(st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+pivote_col_index[blockIdx.x]]==0)
-            {   st_arr[blockIdx.x].theta[threadIdx.x]=0;}
-            else
-            {   st_arr[blockIdx.x].theta[threadIdx.x]=st_arr[blockIdx.x].rhs[threadIdx.x]/(double)st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+pivote_col_index[blockIdx.x]];}
-        }
-        else
-        {
-            int temp_col_index=pivote_col_index[blockIdx.x]-st_arr[blockIdx.x].basic_var_size_col;
-            if(st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+temp_col_index]==0)
-            {   st_arr[blockIdx.x].theta[threadIdx.x]=0;}
-            else
-            {   st_arr[blockIdx.x].theta[threadIdx.x]=st_arr[blockIdx.x].rhs[threadIdx.x]/(double)st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+temp_col_index];}
-        }
     }
 }
 
@@ -316,10 +334,10 @@ __device__ void check_for_cyclic_bug(int *p_col_arr_d,int *p_row_arr_d,buffer *b
     }
 }
 
-__global__ void get_pivot_row_element_kernel(simplex_table_cuda *st_arr,int *p_row_arr,int *p_col_arr,float *pe_arr,char* completion_code,int no_of_tables,buffer *buffer_obj_arr_d)//ok check
+__global__ void get_pivot_row_element_kernel(simplex_table_cuda *st_arr,int *p_row_arr,int *p_col_arr,float *pe_arr,char* completion_code,buffer *buffer_obj_arr_d,int no_of_table)//ok check
 {
     int index=blockIdx.x*32+threadIdx.x;
-    if(index<no_of_tables)
+    if(index<no_of_table)
     {
         if(completion_code[index]=='0')
         {
@@ -353,6 +371,39 @@ __global__ void get_pivot_row_element_kernel(simplex_table_cuda *st_arr,int *p_r
         }
         check_for_cyclic_bug(p_col_arr,p_row_arr,buffer_obj_arr_d,completion_code,index);
     }
+}
+
+__global__ void calc_theta_kernel(simplex_table_cuda *st_arr,int *row_with_negative_slack,int *pivote_col_index,char *completion_code)//ok check
+{
+    //if(threadIdx.x==0)
+    //{   find_row_with_negative_slack_and_p_col_kernel(st_arr,row_with_negative_slack,pivote_col_index,completion_code,blockIdx.x);}
+    //__syncthreads();
+    if(completion_code[blockIdx.x]=='0' && threadIdx.x<st_arr[blockIdx.x].basic_var_size_row)
+    {
+        if(pivote_col_index[blockIdx.x]<st_arr[blockIdx.x].basic_var_size_col)
+        {
+            if(st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+pivote_col_index[blockIdx.x]]==0)
+            {   st_arr[blockIdx.x].theta[threadIdx.x]=0;}
+            else
+            {   st_arr[blockIdx.x].theta[threadIdx.x]=st_arr[blockIdx.x].rhs[threadIdx.x]/(double)st_arr[blockIdx.x].basic_var[threadIdx.x*st_arr[blockIdx.x].basic_var_size_col+pivote_col_index[blockIdx.x]];}
+        }
+        else
+        {
+            int temp_col_index=pivote_col_index[blockIdx.x]-st_arr[blockIdx.x].basic_var_size_col;
+            if(st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+temp_col_index]==0)
+            {   st_arr[blockIdx.x].theta[threadIdx.x]=0;}
+            else
+            {   st_arr[blockIdx.x].theta[threadIdx.x]=st_arr[blockIdx.x].rhs[threadIdx.x]/(double)st_arr[blockIdx.x].slack_var[threadIdx.x*st_arr[blockIdx.x].slack_var_size_col+temp_col_index];}
+        }
+    }
+    //__syncthreads();
+    //int index=blockIdx.x*threads_per_block+threadIdx.x;
+    //printf("\nindex: %d",index);
+    //if(index<no_of_tables)
+    //{   //printf("\nindex2: %d",index);
+    //    get_pivot_row_element_kernel(st_arr,p_row_arr_d,pivote_col_index,pe_d_arr,completion_code,buffer_obj_arr_d,index);}
+    //if(threadIdx.x==0)
+    //{   get_pivot_row_element_kernel(st_arr,p_row_arr_d,pivote_col_index,pe_d_arr,completion_code,buffer_obj_arr_d,blockIdx.x);}
 }
 
 void free_everything_from_vram(simplex_table_cuda *st_d_arr,buffer* buffer_obj_arr_d)//ok check
@@ -420,9 +471,9 @@ vector<conflict_id> pivot_element_finder(simplex_table_cuda *st_d_arr,buffer* bu
     {
         //cout<<"\niteration: "<<iteration;
         find_row_with_negative_slack_and_p_col_kernel<<<no_of_blocks,32,shared_memory_size,stream1>>>(st_d_arr,row_with_negative_slack_d,p_col_arr_d,completion_code_d,st_vec.size());
-        calc_theta_kernel<<<st_vec.size(),largest_row_size,shared_memory_size,stream1>>>(st_d_arr,p_col_arr_d,completion_code_d);
-        get_pivot_row_element_kernel<<<no_of_blocks,32,shared_memory_size,stream1>>>(st_d_arr,p_row_arr_d,p_col_arr_d,pe_d_arr,completion_code_d,st_vec.size(),buffer_obj_arr_d);
-        cudaStreamSynchronize(stream1);
+        calc_theta_kernel<<<st_vec.size(),largest_row_size,shared_memory_size,stream1>>>(st_d_arr,row_with_negative_slack_d,p_col_arr_d,completion_code_d);
+        get_pivot_row_element_kernel<<<no_of_blocks,32,shared_memory_size,stream1>>>(st_d_arr,p_row_arr_d,p_col_arr_d,pe_d_arr,completion_code_d,buffer_obj_arr_d,st_vec.size());
+        //cudaStreamSynchronize(stream1);
         simplex_table_modifier(st_d_arr,row_with_negative_slack_d,pe_d_arr,p_row_arr_d,p_col_arr_d,completion_code_d,largest_col_size,largest_row_size,&stream1);
         //iteration++;
     } 
