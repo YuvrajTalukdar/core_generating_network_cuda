@@ -691,10 +691,10 @@ void start_segment_trainer(segment_class *segment,vector<nn_core_filtered_data> 
     prepare_cdp_and_st_segment(segment,*f_data_vector);
     point1:
     vector<conflict_id> conflict_id_vec=simplex_solver();
-    #pragma omp parallel num_threads(conflict_id_vec.size())
-    //for(int a=0;a<conflict_id_vec.size();a++)
+    //#pragma omp parallel num_threads(conflict_id_vec.size())
+    for(int a=0;a<conflict_id_vec.size();a++)
     {   
-        int a = omp_get_thread_num();
+        //int a = omp_get_thread_num();
         handle_completed_table(&conflict_id_vec[a],a);
     }
     cdp_vec.clear();
@@ -778,16 +778,10 @@ void handle_completed_table(conflict_id *conflict,int index)
         cdp1.not_firing_data.insert(cdp1.not_firing_data.end(),cdp_vec[index].not_firing_data.begin(),cdp_vec[index].not_firing_data.begin()+cdp_vec[index].not_firing_data.size()/2);
         cdp2.not_firing_data.insert(cdp2.not_firing_data.end(),cdp_vec[index].not_firing_data.begin()+cdp_vec[index].not_firing_data.size()/2,cdp_vec[index].not_firing_data.end());
         
-        cdp1.core_no=cdp_vec[index].core_no;
-        cdp1.firing_label=cdp_vec[index].firing_label;
         cdp1.firing_neuron_index=cdp_vec[index].firing_neuron_index;
-        cdp1.segment_no=cdp_vec[index].segment_no;
         cdp1.core=cdp_vec[index].core;
 
-        cdp2.core_no=cdp_vec[index].core_no;
-        cdp2.firing_label=cdp_vec[index].firing_label;
         cdp2.firing_neuron_index=cdp_vec[index].firing_neuron_index;
-        cdp2.segment_no=cdp_vec[index].segment_no;
         cdp2.core=cdp_vec[index].core;
         
         //cout<<"\nfd2: "<<cdp1.firing_data.size()+cdp2.firing_data.size()<<" nfd2: "<<cdp1.not_firing_data.size()+cdp2.not_firing_data.size();
@@ -796,15 +790,11 @@ void handle_completed_table(conflict_id *conflict,int index)
         if(cdp1.firing_data.size()>1 && cdp1.not_firing_data.size()>2)
         {
             simplex_table_cuda *st1=generate_simplex_table(&cdp1,cdp1.core->ds);
-            st1->core_no=cdp1.core_no;
-            st1->segment_no=cdp1.segment_no;
             add_st_cdp_temp(st1,cdp1);
         }
         if(cdp2.firing_data.size()>1 && cdp2.not_firing_data.size()>1)
         {
             simplex_table_cuda *st2=generate_simplex_table(&cdp2,cdp2.core->ds);
-            st2->core_no=cdp2.core_no;
-            st2->segment_no=cdp2.segment_no;
             add_st_cdp_temp(st2,cdp2);
         }
     }

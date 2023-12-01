@@ -37,15 +37,25 @@ struct converted_data_pack
 {
     vector<vector<float>*> firing_data;
     vector<vector<float>*> not_firing_data;
-    //vector<float> objective_function_coefficients;
     vector<float> weight_matrix;//ans stored here.
     int firing_neuron_index;
-    float firing_label;
     bool corupt_pack=false;
-    //ann *network;
     core_class *core;
-    int core_no,segment_no;
 };
+struct converted_data_pack_identifier
+{
+    int id;
+    int firing_data_start_index;
+    int firing_data_end_index;//<=
+    int not_firing_data_start_index;
+    int not_firing_data_end_index;//<=
+    bool cdp_solved=false;
+    bool corupt_pack=false;
+};
+//float constrains[][];
+//int weight_matrix[k][j];
+//converted_data_pack_identifier cdp_identifier_arr[k];
+
 inline vector<converted_data_pack> cdp_vec,cdp_vec_temp;
 
 struct id
@@ -77,6 +87,18 @@ struct simplex_table_cuda
     int core_no,segment_no;
     //int completion_code=0;//0=no solved, 1=solved, 2=conflict found, -1=bad p_row bug, -2= cyclic bug
 };
+struct simplex_table_cuda_identifier
+{
+    int row_start_index;
+    int row_end_index;
+    int basic_var_end_index;//starts from [][0]
+    int slack_var_start_index;
+    int slack_var_end_index;
+};
+//float basic_var[][j*2+2]//+1 for the rhs and theta
+//float slack_var[];//size= sum((st[i].basic_var_end_index-st[i].basic_var_start_index)^2)
+//id r_id[];
+//id c_id[];
 inline vector<simplex_table_cuda*> st_vec,st_vec_temp;
 void add_st_cdp(simplex_table_cuda* st,converted_data_pack cdp);
 void add_st_cdp_temp(simplex_table_cuda* st1,converted_data_pack cdp1);

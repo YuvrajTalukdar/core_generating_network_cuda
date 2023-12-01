@@ -313,7 +313,6 @@ void core_class::big_c_datapack_handler(vector<converted_data_pack> &cdp)//passi
             {
                 cdp_temp2.firing_data.clear();
                 cdp_temp2.not_firing_data.clear();
-                //cdp_temp2.objective_function_coefficients.clear();
                 begin=end;
                 end=begin+limit;
                 if(end>=cdp_temp1.firing_data.size())
@@ -329,14 +328,11 @@ void core_class::big_c_datapack_handler(vector<converted_data_pack> &cdp)//passi
                     end_reached=true;
                 }
                 cdp_temp2.not_firing_data.insert(cdp_temp2.not_firing_data.end(),cdp_temp1.not_firing_data.begin()+begin,cdp_temp1.not_firing_data.begin()+end);
-                cdp_temp2.firing_label=cdp_temp1.firing_label;
                 cdp_temp2.firing_neuron_index=cdp_temp1.firing_neuron_index;
-                //cdp_temp2.objective_function_coefficients=cdp_temp1.objective_function_coefficients;
                 cdp_vect_temp.push_back(cdp_temp2);
             }
             cdp_temp1.firing_data.clear();
             cdp_temp1.not_firing_data.clear();
-            //cdp_temp1.objective_function_coefficients.clear();
         }
     }
     cdp.insert(cdp.end(),cdp_vect_temp.begin(),cdp_vect_temp.end());
@@ -351,10 +347,8 @@ void core_class::big_c_datapack_handler(vector<converted_data_pack> &cdp)//passi
         {
             cdp_temp1.firing_data.clear();
             cdp_temp1.not_firing_data.clear();
-            //cdp_temp1.objective_function_coefficients.clear();
             cdp_temp2.firing_data.clear();
             cdp_temp2.not_firing_data.clear();
-            //cdp_temp2.objective_function_coefficients.clear();
             cdp_temp1=cdp[a];
             cdp.erase(cdp.begin()+a);
             while(abs(difference)>10)
@@ -364,9 +358,7 @@ void core_class::big_c_datapack_handler(vector<converted_data_pack> &cdp)//passi
                     limit=cdp_temp1.firing_data.size();
                     cdp_temp2.firing_data=cdp_temp1.firing_data;
                     cdp_temp2.not_firing_data.insert(cdp_temp2.not_firing_data.end(),cdp_temp1.not_firing_data.begin()+abs(difference),cdp_temp1.not_firing_data.end());
-                    cdp_temp2.firing_label=cdp_temp1.firing_label;
                     cdp_temp2.firing_neuron_index=cdp_temp1.firing_neuron_index;
-                    //cdp_temp2.objective_function_coefficients=cdp_temp1.objective_function_coefficients;
                     cdp_temp1.not_firing_data.erase(cdp_temp1.not_firing_data.begin()+abs(difference),cdp_temp1.not_firing_data.end());
                     cdp_vect_temp.push_back(cdp_temp2);
                 }
@@ -375,16 +367,13 @@ void core_class::big_c_datapack_handler(vector<converted_data_pack> &cdp)//passi
                     limit=cdp_temp1.not_firing_data.size();
                     cdp_temp2.not_firing_data=cdp_temp1.not_firing_data;
                     cdp_temp2.firing_data.insert(cdp_temp2.firing_data.end(),cdp_temp1.firing_data.begin()+abs(difference),cdp_temp1.firing_data.end());
-                    cdp_temp2.firing_label=cdp_temp1.firing_label;
                     cdp_temp2.firing_neuron_index=cdp_temp1.firing_neuron_index;
-                    //cdp_temp2.objective_function_coefficients=cdp_temp1.objective_function_coefficients;
                     cdp_temp1.firing_data.erase(cdp_temp1.firing_data.begin()+abs(difference),cdp_temp1.firing_data.end());
                     cdp_vect_temp.push_back(cdp_temp2);
                 }
                 difference=cdp_temp1.firing_data.size()-cdp_temp1.not_firing_data.size();
                 cdp_temp2.firing_data.clear();
                 cdp_temp2.not_firing_data.clear();
-                //cdp_temp2.objective_function_coefficients.clear();
             }
             cdp.push_back(cdp_temp1);
         }
@@ -483,7 +472,6 @@ void prepare_cdp_and_st_core(core_class *core)
                     c_datapack.not_firing_data.push_back(not_firing_data_temp[b]);
                 }
                 //setting up the label and output neuron index
-                c_datapack.firing_label=core->f_data_pack->at(a).label;
                 c_datapack.firing_neuron_index=a;
                 //pushing the c_datapack in c_datapacks vector
                 core->c_datapacks.push_back(c_datapack);
@@ -520,7 +508,6 @@ void prepare_cdp_and_st_core(core_class *core)
                     }
                 }
                 //setting up the label and output neuron index
-                c_datapack.firing_label=core->f_data_pack->at(a).label;
                 c_datapack.firing_neuron_index=a;
                 core->c_datapacks.push_back(c_datapack);
                 no_of_packages_created++;
@@ -544,8 +531,6 @@ void prepare_cdp_and_st_core(core_class *core)
         simplex_table_cuda *st=generate_simplex_table(&core->c_datapacks[a],core->ds); 
         st->core_no=core->core_no;
         st->segment_no=core->parent_segment_no;
-        core->c_datapacks[a].core_no=core->core_no;
-        core->c_datapacks[a].segment_no=core->parent_segment_no;
         core->c_datapacks[a].core=core;
         add_st_cdp(st,core->c_datapacks[a]);
     }

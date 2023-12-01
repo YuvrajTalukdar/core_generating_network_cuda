@@ -55,17 +55,7 @@ __global__ void rest_of_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,in
             if(completion_code[index2]=='0')
             {
                 pivot_row_modifier(st_arr,pe_arr,p_row_arr,p_col_arr,completion_code,index2,threadIdx.x);
-            }
-        }
-    }
-    __syncthreads();
-    for(int a=0;a<loop_size;a++)
-    {
-        int index2=blockIdx.x*loop_size+a;
-        if(index2<no_of_tables)
-        {
-            if(completion_code[index2]=='0')
-            {
+                __syncthreads();
                 if(threadIdx.x<st_arr[index2].basic_var_size_row)
                 {
                     if(threadIdx.x!=p_row_arr[index2])//all row accept pivot row
@@ -100,17 +90,7 @@ __global__ void rest_of_row_modifier(simplex_table_cuda *st_arr,float *pe_arr,in
                         st_arr[index2].rhs[threadIdx.x]-=multiplying_element*st_arr[index2].rhs[p_row_arr[index2]];   
                     }
                 }
-            }
-        }
-    }
-    __syncthreads();
-    for(int a=0;a<loop_size;a++)
-    {
-        int index2=blockIdx.x*loop_size+a;
-        if(index2<no_of_tables)
-        {
-            if(completion_code[index2]=='0')
-            {
+                __syncthreads();
                 if(threadIdx.x<st_arr[index2].basic_var_size_row && threadIdx.x!=p_row_arr[index2])
                 {
                     if(p_col_arr[index2]<st_arr[index2].basic_var_size_col)
